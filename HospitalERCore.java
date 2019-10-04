@@ -94,12 +94,12 @@ public class HospitalERCore{
 
         // reset the waiting room, the treatment room, and the statistics.
         /*# YOUR CODE HERE */
-         if (!waitingRoom.isEmpty()){
-             waitingRoom.clear();
-         }
+        if (!waitingRoom.isEmpty()){
+            waitingRoom.clear();
+        }
         if (!treatmentRoom.isEmpty()){
             treatmentRoom.clear();
-         }
+        }
 
         UI.clearGraphics();
         UI.clearText();
@@ -123,18 +123,24 @@ public class HospitalERCore{
             time++;
 
             for (Patient p : treatmentRoom){
-              if (p.completedCurrentTreatment() == true){
-                   treatmentRoom.remove(p);
-                   UI.println(time+ ": Discharge: " + p);
-               }
-             }
+                if (!p.completedCurrentTreatment()){
+                    p.advanceTreatmentByTick();
+                }
+                if (p.completedCurrentTreatment()){
+                 p.incrementTreatmentNumber();   
+                }
+                if (p.noMoreTreatments() == true){
+                    treatmentRoom.remove(p);
+                    UI.println(time+ ": Discharge: " + p);
+                }
+            }
 
-             while (treatmentRoom.size() < MAX_PATIENTS && !waitingRoom.isEmpty()){
-               treatmentRoom.add(waitingRoom.poll());
+            while (treatmentRoom.size() < MAX_PATIENTS && !waitingRoom.isEmpty()){
+                treatmentRoom.add(waitingRoom.poll());
 
                 UI.println("Added");
 
-             }
+            }
 
             // Gets any new patient that has arrived and adds them to the waiting room
             if (time==1 || Math.random()<1.0/arrivalInterval){
