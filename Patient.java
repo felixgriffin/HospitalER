@@ -9,329 +9,197 @@
  */
 
 import ecs100.*;
-import java.awt.Color;
 import java.util.*;
 import java.io.*;
 
-/** 
- * Represents an ER Patient at a Hospital
- * Each Patient has
- *     a name and
- *     initials,
- *     an arrival time,
- *     total waiting time
- *     total treatment time
- *  and has been examined by the triage team at reception who has assigned
- *     a priority (1 - 3)  and
- *     a list of treatments that Patient must have
- *       (scans, examinations, operations, etc)
- *     a list of the times that the patient will spend in each treatment
- *   NOTE: For the core, you can ignore all but the first treatment.
+/**
+ * Simple Simulation of a Hospital ER
  * 
- *  Possible treatments:  ER, MRI, Surgery, X-ray Ultrasound
-
- * Constructor:
- *     Patient(arrivalTime, triagePriority)
- *         All the other fields are generated automatically on creation
-
- * Methods:
- *   compareTo(other)   -> int
- *   redraw(x, y)
- *   toString()         -> String
- *   getPriority()      -> int
- *   getWaitingTime()   -> int
- *   getTreatmentTime() -> int
+ * The Emergency room has a waiting room and a treatment room that has a fixed
+ *  set of beds for examining and treating patients.
+ * 
+ * When a patient arrives at the emergency room, they are immediately assessed by the
+ *  triage team who determines the priority of the patient.
  *
- *   waitForATick()
- *   advanceTreatmentByTick()
- *   completedCurrentTreatment() -> boolean
+ * They then wait in the waiting room until a bed becomes free, at which point
+ * they go from the waiting room to the treatment room.
  *
- *   [THE FOLLOWING ARE NOT NEEDED FOR THE CORE]
- *   noMoreTreatments()    -> boolean  
- *   incrementTreatmentNumber()    
- *   getCurrentTreatment()       -> String (name of department for the treatment needed now)
+ * When a patient has finished their treatment, they leave the treatment room and are discharged,
+ *  at which point information about the patient is added to the statistics. 
+ *
+ *  READ THE ASSIGNMENT PAGE!
  */
 
-public class Patient implements Comparable<Patient>{
+public class HospitalERCore{
 
-    private String name;
-    private String initials;
-    private int arrival;
-    private int priority;  // 1 is highest priority, 3 is lowest priority
-    private List<String> treatments = new ArrayList<String>();
-    private List<Integer> treatmentTimes = new ArrayList<Integer>();
-    private int currentTreatment;   // index of the treatment they are currently in or waiting for
-    private int totalWaitTime;
-    private int totalTreatmentTime;
+    // Fields for recording the patients waiting in the waiting room and being treated in the treatment room
+    private Queue<Patient> waitingRoom = new ArrayDeque<Patient>();
+    private static final int MAX_PATIENTS = 5;   // max number of patients currently being treated
+    private Set<Patient> treatmentRoom = new HashSet<Patient>();
 
-    private Random random = new Random();  //used for generating the random values.
+    // fields for the statistics
+    /*# YOUR CODE HERE */
+
+    // Fields for the simulation
+    private boolean running = false;
+    private int time = 0; // The simulated time - the current "tick"
+    private int delay = 300;  // milliseconds of real time for each tick
+
+    // fields controlling the probabilities.
+    private int arrivalInterval = 5;   // new patient every 5 ticks, on average
+    private double probPri1 = 0.1; // 10% priority 1 patients
+    private double probPri2 = 0.2; // 20% priority 2 patients
+    private Random random = new Random();  // The random number generator.
 
     /**
-     * Construct a new Patient object
-     * parameters are the arrival time and the priority.
+     * Construct a new HospitalERCore object, setting up the GUI, and resetting
      */
-    public Patient(int time, int triPriority){
-        arrival = time;
-        priority = triPriority;
-        makeRandomName();
-        makeRandomTreatments();
-        currentTreatment = 0; 
+    public static void main(String[] arguments){
+        HospitalERCore er = new HospitalERCore();
+        er.setupGUI();
+        er.reset(false);   // initialise with an ordinary queue.
+    }        
+
+    /**
+     * Set up the GUI: buttons to control simulation and sliders for setting parameters
+     */
+    public void setupGUI(){
+        UI.addButton("Reset (Queue)", () -> {this.reset(false); });
+        UI.addButton("Reset (Pri Queue)", () -> {this.reset(true);});
+        UI.addButton("Start", ()->{if (!running){ run(); }});   //don't start if already running!
+        UI.addButton("Pause & Report", ()->{running=false;});
+        UI.addSlider("Speed", 1, 400, (401-delay),
+            (double val)-> {delay = (int)(401-val);});
+        UI.addSlider("Av arrival interval", 1, 50, arrivalInterval,
+            (double val)-> {arrivalInterval = (int)val;});
+        UI.addSlider("Prob of Pri 1", 1, 100, probPri1*100,
+            (double val)-> {probPri1 = val/100;});
+        UI.addSlider("Prob of Pri 2", 1, 100, probPri2*100,
+            (double val)-> {probPri2 = Math.min(val/100,1-probPri1);});
+        UI.addButton("Quit", UI::quit);
+        UI.setWindowSize(1000,600);
+        UI.setDivider(0.5);
     }
 
-    /** Return the priority */
-    public int getPriority(){ return priority; }
-
-    /** Return the total time spent waiting */
-    public int getWaitingTime(){ return totalWaitTime; }
-
-    /** Return the total time treatment in treatment */
-    public int getTreatmentTime(){ return totalTreatmentTime; }
-
     /**
-     * Make Patient wait for one tick.
-     * added to patient's totalWaitTime
+     * Reset the simulation:
+     *  stop any running simulation,
+     *  reset the waiting and treatment rooms
+     *  reset the statistics.
      */
-    public void waitForATick(){
-        totalWaitTime++;
+    public void reset(boolean usePriorityQueue){
+        running=false;
+        UI.sleep(2*delay);  // to make sure that any running simulation has stopped
+        time = 0;           // set the "tick" to zero.
+
+        // reset the waiting room, the treatment room, and the statistics.
+        /*# YOUR CODE HERE */
+         if (!waitingRoom.isEmpty()){
+             waitingRoom.clear();
+         }
+        if (!treatmentRoom.isEmpty()){
+            treatmentRoom.clear();
+         }
+
+        UI.clearGraphics();
+        UI.clearText();
     }
 
     /**
-     * Reduce the remaining time of the current treatment by 1 tick. 
-     * Throws an exception if the patient has already completed this treatment.
-     *  or if the treatment at the head of the queue is finished
-     *  (Ie, always ensure that the patient is not yet completed before calling) 
+     * Main loop of the simulation
      */
-    public void advanceTreatmentByTick(){
-        if (completedCurrentTreatment()){
-            throw new RuntimeException("patient has finished this treatment: "+this);
+    public void run(){
+        if (running) { return; } // don't start simulation if already running one!
+        running = true;
+        while (running){         // each time step, check whether the simulation should pause.
+
+            // Hint: if you are stepping through a set, you can't remove
+            //   items from the set inside the loop!
+            //   If you need to remove items, you can add the items to a
+            //   temporary list, and after the loop is done, remove all 
+            //   the items on the temporary list from the set.
+
+            /*# YOUR CODE HERE */
+            time++;
+
+            for (Patient p : treatmentRoom){
+              if (p.completedCurrentTreatment() == true){
+                   treatmentRoom.remove(p);
+                   UI.println(time+ ": Discharge: " + p);
+               }
+             }
+
+             while (treatmentRoom.size() < MAX_PATIENTS && !waitingRoom.isEmpty()){
+               treatmentRoom.add(waitingRoom.poll());
+
+                UI.println("Added");
+
+             }
+
+            // Gets any new patient that has arrived and adds them to the waiting room
+            if (time==1 || Math.random()<1.0/arrivalInterval){
+                Patient newPatient = new Patient(time, randomPriority());
+                UI.println(time+ ": Arrived: "+newPatient);
+                waitingRoom.offer(newPatient);
+            }
+            redraw();
+            UI.sleep(delay);
+
+            // paused, so report current statistics
+            this.reportStatistics();
         }
-        totalTreatmentTime++;
-        treatmentTimes.set(currentTreatment, treatmentTimes.get(currentTreatment)-1);
     }
+    // Additional methods used by run() (You can define more of your own)
 
     /**
-     * Return true if patient has completed their current treatment
+     * Report summary statistics about all the patients that have been discharged.
+     * (Doesn't include information about the patients currently waiting or being treated)
+     * The run method should have been recording various statistics during the simulation.
      */
-    public boolean completedCurrentTreatment(){
-        if (currentTreatment >= treatments.size()){
-            throw new RuntimeException("patient already completed all treatments: "+this);
+    public void reportStatistics(){
+        /*# YOUR CODE HERE */
+
+    }
+
+    // HELPER METHODS FOR THE SIMULATION AND VISUALISATION
+    /**
+     * Redraws all the departments
+     */
+    public void redraw(){
+        UI.clearGraphics();
+        UI.setFontSize(14);
+        UI.drawString("Treating Patients", 5, 15);
+        UI.drawString("Waiting Queues", 200, 15);
+        UI.drawLine(0,32,400, 32);
+
+        // Draw the treatment room and the waiting room:
+        double y = 80;
+        UI.setFontSize(14);
+        UI.drawString("ER", 0, y-35);
+        double x = 10;
+        UI.drawRect(x-5, y-30, MAX_PATIENTS*10, 30);  // box to show max number of patients
+        for(Patient p : treatmentRoom){
+            p.redraw(x, y);
+            x += 10;
         }
-        return (treatmentTimes.get(currentTreatment)==0);
-    }
-
-    /**
-     * Return true if the patient has completed all their treatments.
-     */
-    public boolean noMoreTreatments(){
-        return (currentTreatment >= treatments.size());
-
-    }
-
-    /**
-     * Return the name of the patient's current treatment
-     * Throws an exception if the patient is all done.
-     */
-    public String getCurrentTreatment(){
-        if (noMoreTreatments()){
-            throw new RuntimeException("patient already completed: "+this);
+        x = 200;
+        for(Patient p : waitingRoom){
+            p.redraw(x, y);
+            x += 10;
         }
-        return treatments.get(currentTreatment);
-    }
-
-    /**
-     * Advance the index to the next treatment they need
-     * Only changes the index in the Patient;
-     * Doesn't move them to the next department!!
-     * Throws an exception if the patient has no more treatments to visit
-     */
-    public void incrementTreatmentNumber(){
-        if (noMoreTreatments()){
-            throw new RuntimeException("patient already completed: "+this);
-        }
-        currentTreatment++;
+        UI.drawLine(0,y+2,400, y+2);
     }
 
     /** 
-     * Compare this Patient with another Patient to determine who should
-     *  be treated first.
-     * A patient should be earlier in the ordering if they should be treated first.
-     * The ordering depends on the triage priority and the arrival time.
+     * Returns a random priority 1 - 3
+     * Probability of a priority 1 patient should be probPri1
+     * Probability of a priority 2 patient should be probPri2
+     * Probability of a priority 3 patient should be (1-probPri1-probPri2)
      */
-    public int compareTo(Patient other){
-        /*# YOUR CODE HERE */
-
-        return 0;
+    private int randomPriority(){
+        double rnd = random.nextDouble();
+        if (rnd < probPri1) {return 1;}
+        if (rnd < (probPri1 + probPri2) ) {return 2;}
+        return 3;
     }
-
-    /** toString: Descriptive string of most of the information in the patient*/
-    public String toString(){
-        StringBuilder ans = new StringBuilder(name);
-        ans.append(", pri:").append(priority).append(", Ar:").append(arrival).append(", ").
-        append("treat: ").append(totalTreatmentTime).append(" wait: ").append(totalWaitTime).append("\n    ");
-        ans.append(treatments.size()).append(" treatments:");
-        for (int i=0; i<treatments.size(); i++){
-            if (i==currentTreatment){ans.append("*");}
-            ans.append(treatments.get(i));
-            if (treatmentTimes.get(i)>0){
-                ans.append("(").append(treatmentTimes.get(i)).append(")");
-            }
-            ans.append(", ");
-        }
-        return ans.toString();
-    }
-
-    /**
-     * Draw the patient:
-     * 6 units wide, 28 units high
-     * x,y specifies center of the base
-     */
-    public void redraw(double x, double y){
-        if (priority == 1) UI.setColor(Color.red);
-        else if (priority == 2) UI.setColor(Color.orange);
-        else UI.setColor(Color.green);
-        UI.fillOval(x-3, y-28, 6, 8);
-        UI.fillRect(x-3, y-20, 6, 20);
-        UI.setColor(Color.black);
-        UI.drawOval(x-3, y-28, 6, 8);
-        UI.drawRect(x-3, y-20, 6, 20);
-        UI.setFontSize(10);
-        UI.drawString(""+initials.charAt(0), x-3,y-10);
-        UI.drawString(""+initials.charAt(1), x-3,y-1);
-    }
-
-    // Creating random names and treatments
-    /**
-     * Create a sequence of random treatments in trts and times
-     * The sequence is influenced by priority of the patient:
-     *  - high priority patients are more likely to need the operating
-     *    theatre first, and a more complicated treatment sequence.
-     *  low priority patients are more likely to just need an ER bed treatment.
-     */
-    private void makeRandomTreatments(){
-        //choose number of treatments.
-        //choose location and length of each treatment
-        //
-        // always start with ER
-        // if (random.nextDouble()<0.8 ||    
-        //     (priority==1 && random.nextDouble()<0.4)){
-        treatments.add("ER");
-        treatmentTimes.add(randomTreatmentTime(20));
-
-        //many high priority patients need surgery.
-        if ((priority==1  && random.nextDouble()<0.4) ||  
-        (priority==2 && random.nextDouble()<0.1)){
-            treatments.add("Surgery");
-            treatmentTimes.add(randomTreatmentTime(60));
-        }
-        int n = (random.nextInt(5));   // number of additional treatments
-        for (int i=0; i<n; i++){
-            double num = random.nextDouble();
-            if (num<0.05){
-                treatments.add("MRI"); 
-                treatmentTimes.add(randomTreatmentTime(200));
-            }
-            else if (num<0.1){
-                treatments.add("Surgery"); 
-                treatmentTimes.add(randomTreatmentTime(200));
-            }
-            else if (num<0.35){
-                treatments.add("X-ray");
-                treatmentTimes.add(randomTreatmentTime(20));
-            }
-            else if (num<0.6){
-                treatments.add("Ultrasound");
-                treatmentTimes.add(randomTreatmentTime(20));
-            }
-            else {
-                treatments.add("ER");
-                treatmentTimes.add(randomTreatmentTime(10));
-            }
-        }
-        //remove immediate repetitions
-        for (int i=0; i<treatments.size()-1; i++){
-            if (treatments.get(i).equals(treatments.get(i+1))){
-                treatments.remove(i+1);
-                treatmentTimes.remove(i+1);
-                i--;
-            }
-        }
-    }
-
-    /**
-     * Returns a random treatment time with the given median
-     * (half the treatment times will be below the median; half above).
-     * Always at least 1 tick; but some take a long time.
-     * (Based on a log-normal distribution, mu=0, sigma=0.6.
-     *  increase sigma to spread it out more)
-     */
-    private int randomTreatmentTime(int median){
-        double sigma = 0.6;
-        double logNorm = Math.exp(sigma*random.nextGaussian());
-        int m = Math.max(0, median-1);
-        return (int)(1 + m*logNorm);
-    }
-
-    /**
-     * Create a random name using the lists below
-     */
-    private void makeRandomName(){
-        String name1 = names1[random.nextInt(names1.length)];
-        String name2 = names2[random.nextInt(names2.length)];
-        name = name1+" "+name2;
-        initials = name1.substring(0,1)+name2.substring(0,1);
-    }
-
-    private String[] names1 =
-        {"Lisa","Ramon","Janet","Catherine","Chris","Wokje","Thuong","Andrea",
-            "Manjeet","Toby","Philip","Bing","Renee","Derek","David","John",
-            "Christian","Yongxin","Charles","Michael","Colin","Helen","Mansoor","Rod",
-            "Todd","Dan","Colin","Shirley","Alex","John","Michael","Peter",
-            "Paul","Ian","Jenny","Bob","Jeffrey","Joanna","Kathryn","Andy",
-            "Inge","Maree","Rosie","Joanne","Yau","Rebecca","Robyn","Christine",
-            "Guy","Christina","Tirta","Ruiping","Victoria","Bernadette","Catherine","Mo",
-            "Tom","Natalie","Harold","Dimitrios","Alexander","James","Michael",
-            "Yu-Wei","Emily","Christian","Alia","Zohar","Kimberly","Ocean","Yi",
-            "Jamy","Travis","Deborah","Kim","Linda","Gillian","Bronwyn","Bruce",
-            "Miriam","Gillian","Jenny"};
-
-    private String[] names2 =
-        {"Alcock","Ansell","Armstrong","Bai","Bates","Biddle","Bradley","Brunt","Calvert",
-            "Chawner","Cho","Clark","Coxhead","Cullen","Daubs","Day","Dinica","Downey",
-            "Dunbar","Elinoff","Fortune","Gabrakova","Geng","Goreham","Groves","Hall",
-            "Harris","Hodis","Horgan","Hunt","Jackson","Jones","Keane-Tuala","Khaled",
-            "Kidman","Krtalic","Laufer","Levi","Locke","Mackay","Marquez","Maskill",
-            "Maxwell","McCrudden","McGuinness","McMillan","Mei","Millington","Moore",
-            "Murphy","Nelson","Niemetz","O'Hare","Owen","Pearce","Perris","Pirini",
-            "Pratt","Randal","Reilly","Rimoni","Robinson","Ruck","Schipper",
-            "Servetto","Shuker","Skinner","Speedy","Stevens","Sweet","Taylor",
-            "Terreni","Timperley","Turetsky","Vignaux","Wallace","Welch","Wilson",
-            "Ackerley","Adds","Anderson","Anslow","Antunes","Armstrong","Arnedo-Gomez",
-            "Bacharach","Bai","Barrett","Baskerville","Bennett","Berman","Boniface",
-            "Boston","Brady","Bridgman","Brunt","Buettner","Calhoun","Calvert",
-            "Capie","Carmel","Chiaroni","Chicca","Chu","Chu","Clark",
-            "Clayton","Coxhead","Craig","Cuffe","Cullen","Dalli","Das",
-            "Davidson","Davies","Desai","Devue","Dinneen","Dmochowski","Downey",
-            "Doyle","Dumitrescu","Dunbar","Elgort","Elias","Faamanatu-Eteuati","Feld",
-            "Fraser","Frean","Galvosas","Gamble","Geng","George","Goh",
-            "Goreham","Gregory","Grener","Guy","Haggerty","Hammond","Hannah",
-            "Harvey","Haywood","Hodis","Hogg","Horgan","Horgan","Hubbard",
-            "Hui","Ingham","Jack","Johnston","Johnston","Jordan","Joyce",
-            "Keane-Tuala","Kebbell","Keyzers","Khaled","Kiddle","Kiddle","Kirkby",
-            "Knewstubb","Kuehne","Lacey","Leah","Leggott","Levi","Lindsay",
-            "Loader","Locke","Lynch","Ma","Mallett","Mares","Marriott",
-            "Marshall","Maslen","Mason","Maxwell","May","McCarthy","McCrudden",
-            "McDonald","McGregor","McKee","McKinnon","McNeill","McRae","Mercier",
-            "Metuarau","Millington","Mitsotakis","Molloy","Moore","Muaiava","Muckle",
-            "Natali","Neha","Newton","Nguyen","Nisa","Noakes-Duncan",
-            "Ok","Overton","Park","Parkinson","Penetito","Perkins","Petkov",
-            "Pham","Pivac","Plank","Price","Raman","Rees","Reichenberger",
-            "Riad","Rice-Davis","Ritchie","Robb","Rofe","Rook","Ruegg",
-            "Schick","Scott","Seals","Sheffield","Shewan","Sim","Simpson",
-            "Smaill","Smith","Spencer","Stern","Susilo","Sutherland","Tariquzzaman",
-            "Tatum","Te Huia","Te Morenga","Thirkell-White","Thomas","Tokeley","Trundle",
-            "Van Belle","Van Rij","Vowles","Vry","Ward","Warren","White",
-            "Whittle","Wilson","Wilson","Wood","Yao","Yu","Zareei",
-            "de Saxe","de Sylva","van der Meer", "Woods","Yates","Zhang","van Zijl"
-        };
-
 }
