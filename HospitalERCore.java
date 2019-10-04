@@ -94,12 +94,12 @@ public class HospitalERCore{
 
         // reset the waiting room, the treatment room, and the statistics.
         /*# YOUR CODE HERE */
-        if (!waitingRoom.isEmpty()){
-        waitingRoom.clear();
-    }
-    if (!treatmentRoom.isEmpty()){
-        treatmentRoom.clear();
-    }
+         if (!waitingRoom.isEmpty()){
+             waitingRoom.clear();
+         }
+        if (!treatmentRoom.isEmpty()){
+            treatmentRoom.clear();
+         }
 
         UI.clearGraphics();
         UI.clearText();
@@ -123,19 +123,19 @@ public class HospitalERCore{
             time++;
 
             for (Patient p : treatmentRoom){
-                if (p.completedCurrentTreatment() == true){
-                    treatmentRoom.remove(p);
-                    UI.println(time+ ": Discharge: " + p);
-                }
-            }
+              if (p.completedCurrentTreatment() == true){
+                   treatmentRoom.remove(p);
+                   UI.println(time+ ": Discharge: " + p);
+               }
+             }
 
-            while (treatmentRoom.size() < MAX_PATIENTS){
-                if (!waitingRoom.isEmpty()){
-                    treatmentRoom.add(waitingRoom.poll());
-                }
-            }
+             while (treatmentRoom.size() < MAX_PATIENTS && !waitingRoom.isEmpty()){
+               treatmentRoom.add(waitingRoom.poll());
 
-            
+                UI.println("Added");
+
+             }
+
             // Gets any new patient that has arrived and adds them to the waiting room
             if (time==1 || Math.random()<1.0/arrivalInterval){
                 Patient newPatient = new Patient(time, randomPriority());
@@ -144,11 +144,11 @@ public class HospitalERCore{
             }
             redraw();
             UI.sleep(delay);
-        }
-        // paused, so report current statistics
-        reportStatistics();
-    }
 
+            // paused, so report current statistics
+            this.reportStatistics();
+        }
+    }
     // Additional methods used by run() (You can define more of your own)
 
     /**
