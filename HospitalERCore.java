@@ -39,6 +39,10 @@ public class HospitalERCore{
 
     // fields for the statistics
     /*# YOUR CODE HERE */
+    int patientsTreated;
+    double totaltreating;
+    double waittimetotal;
+    double average;
 
     // Fields for the simulation
     private boolean running = false;
@@ -121,21 +125,33 @@ public class HospitalERCore{
 
             /*# YOUR CODE HERE */
             time++;
+            Queue <Patient> lmao = new ArrayDeque<Patient>();
+
+            for (Patient p : waitingRoom){
+                p.waitForATick();   
+            }
 
             for (Patient p : treatmentRoom){
                 if (!p.completedCurrentTreatment()){
                     p.advanceTreatmentByTick();
                 }
                 if (p.completedCurrentTreatment()){
-                 p.incrementTreatmentNumber();   
+                    p.incrementTreatmentNumber();   
                 }
-                if (p.noMoreTreatments() == true){
-                    treatmentRoom.remove(p);
+                                if (p.noMoreTreatments() == true){
+                    lmao.add(p);
                     UI.println(time+ ": Discharge: " + p);
+                    patientsTreated++;
+                    UI.println(patientsTreated);
                 }
             }
 
+            treatmentRoom.remove(lmao.poll());
+
             while (treatmentRoom.size() < MAX_PATIENTS && !waitingRoom.isEmpty()){
+                int wait = waitingRoom.peek().getWaitingTime();
+                totaltreating = totaltreating + 1;
+                waittimetotal = waittimetotal + wait;
                 treatmentRoom.add(waitingRoom.poll());
 
                 UI.println("Added");
@@ -152,7 +168,6 @@ public class HospitalERCore{
             UI.sleep(delay);
 
             // paused, so report current statistics
-            this.reportStatistics();
         }
     }
     // Additional methods used by run() (You can define more of your own)
@@ -163,8 +178,9 @@ public class HospitalERCore{
      * The run method should have been recording various statistics during the simulation.
      */
     public void reportStatistics(){
-        /*# YOUR CODE HERE */
-
+        UI.println("Patients treated: " + patientsTreated);
+        double averages = waittimetotal / totaltreating;
+        UI.println("Average waiting time: " + averages);
     }
 
     // HELPER METHODS FOR THE SIMULATION AND VISUALISATION
