@@ -132,29 +132,28 @@ public class HospitalERCore{
             }
 
             for (Patient p : treatmentRoom){
+                if (p.noMoreTreatments() == true){
+                    lmao.add(p);
+                    UI.println(time+ ": Discharge: " + p);
+                    patientsTreated++;
+                    UI.println(patientsTreated);
+                }
                 if (!p.completedCurrentTreatment()){
                     p.advanceTreatmentByTick();
                 }
                 if (p.completedCurrentTreatment()){
                     p.incrementTreatmentNumber();   
                 }
-                                if (p.noMoreTreatments() == true){
-                    lmao.add(p);
-                    UI.println(time+ ": Discharge: " + p);
-                    patientsTreated++;
-                    UI.println(patientsTreated);
-                }
+
             }
-
-            treatmentRoom.remove(lmao.poll());
-
+            treatmentRoom.removeAll(lmao);
             while (treatmentRoom.size() < MAX_PATIENTS && !waitingRoom.isEmpty()){
                 int wait = waitingRoom.peek().getWaitingTime();
                 totaltreating = totaltreating + 1;
                 waittimetotal = waittimetotal + wait;
                 treatmentRoom.add(waitingRoom.poll());
 
-                UI.println("Added");
+                UI.println("New patient in treatment room.");
 
             }
 
@@ -168,6 +167,9 @@ public class HospitalERCore{
             UI.sleep(delay);
 
             // paused, so report current statistics
+            if (running == false){
+                this.reportStatistics();
+            }
         }
     }
     // Additional methods used by run() (You can define more of your own)
